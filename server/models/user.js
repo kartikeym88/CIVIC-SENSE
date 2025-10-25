@@ -15,10 +15,11 @@ export default mongoose.model("User", userSchema);
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  uid: { type: String, required: true, unique: true },
+  name: { type: String },
+  email: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
 });
 
-// ✅ Prevent OverwriteModelError in dev/hot reload
-export default mongoose.models.User || mongoose.model("User", userSchema);
-
+const User = mongoose.model("User", userSchema);
+export default User;
