@@ -1,5 +1,6 @@
 import User from "../models/user.js";
 
+
 export const createUser = async (req, res) => {
   try {
     const { name, email } = req.body;
