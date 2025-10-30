@@ -8,12 +8,24 @@ router.get("/", (req, res) => {
 
 export default router;*/
 import express from "express";
-import { createUser, getUsers } from "../controllers/userController.js";
+import {
+  createUser,
+  getUsers,
+  getCurrentUser,
+} from "../controllers/userController.js";
+import { verifyFirebaseToken } from "../middleware/authFirebase.js";
 
 const router = express.Router();
 
+// Register user
 router.post("/register", createUser);
+
+// Get all users
 router.get("/", getUsers);
 
+// Get current user info (requires Firebase token)
+router.get("/me", verifyFirebaseToken, getCurrentUser);
+
 export default router;
+
 

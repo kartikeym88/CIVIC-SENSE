@@ -170,19 +170,23 @@ import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import { storage } from "../firebaseConfig";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import toast from "react-hot-toast";
+
 
 export default function CreatePost() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [location, setLocation] = useState({ lat: null, lng: null, text: "" });
   const [autoDetected, setAutoDetected] = useState(false);
   const [fetchingAddress, setFetchingAddress] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Function to fetch address using reverse geocoding
+  // ✅ Fetch address using reverse geocoding
   const fetchAddress = async (lat, lng) => {
     try {
       setFetchingAddress(true);
@@ -190,17 +194,23 @@ export default function CreatePost() {
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
       );
       const data = await res.json();
-      const address = data.display_name || `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+      const address =
+        data.display_name ||
+        `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
       setLocation({ lat, lng, text: address });
     } catch (err) {
       console.error("❌ Reverse geocoding failed:", err);
-      setLocation({ lat, lng, text: `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}` });
+      setLocation({
+        lat,
+        lng,
+        text: `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`,
+      });
     } finally {
       setFetchingAddress(false);
     }
   };
 
-  // ✅ Auto-detect location on load
+  // ✅ Auto-detect location
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -214,7 +224,7 @@ export default function CreatePost() {
     }
   }, []);
 
-  // ✅ Handle manual map click
+  // ✅ Manual map click selector
   const LocationSelector = () => {
     useMapEvents({
       click(e) {
@@ -228,8 +238,44 @@ export default function CreatePost() {
     ) : null;
   };
 
+  // 🟢 Upload image to Firebase
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const storageRef = ref(storage, `complaints/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    setUploading(true);
+
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log(`Upload is ${progress.toFixed(0)}% done`);
+      },
+      (error) => {
+        console.error("❌ Upload failed:", error);
+        alert("Image upload failed!");
+        setUploading(false);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setImageUrl(downloadURL);
+          setUploading(false);
+          alert("✅ Image uploaded successfully!");
+        });
+      }
+    );
+  };
+
+  // ✅ Submit complaint
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!title || !description || !category) {
+      return alert("Please fill all fields.");
+    }
+
     try {
       const post = {
         title,
@@ -239,15 +285,22 @@ export default function CreatePost() {
         location,
       };
       await api.post("/posts", post);
-      alert("✅ Complaint logged successfully!");
-      navigate("/dashboard");
+      toast.success("✅ Complaint logged successfully!");
+
+      // ⏳ short delay so toast renders before redirect
+      setTimeout(() => navigate("/"), 800);
+
+
+
     } catch (err) {
       console.error(err.response?.data || err.message || err);
-      alert("Error logging complaint: " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || err.message || "Error logging complaint");
+
     }
   };
 
-  const defaultCenter = location.lat && location.lng ? [location.lat, location.lng] : [20.5937, 78.9629];
+  const defaultCenter =
+    location.lat && location.lng ? [location.lat, location.lng] : [20.5937, 78.9629];
 
   return (
     <div className="max-w-lg mx-auto p-6 bg-white rounded-xl shadow-md mt-6">
@@ -272,20 +325,34 @@ export default function CreatePost() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         />
-        <input
-          className="border p-2 rounded"
-          placeholder="Image URL"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-        />
+
+        {/* 🟢 Image Upload */}
+        <div>
+          <label className="block mb-1 font-semibold">Upload Image</label>
+          <input type="file" accept="image/*" onChange={handleImageUpload} />
+          {uploading && (
+            <p className="text-sm text-gray-500 mt-1">Uploading image...</p>
+          )}
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt="Preview"
+              className="mt-2 w-48 h-32 object-cover rounded shadow"
+            />
+          )}
+        </div>
 
         {/* 📍 Location Picker */}
         <div>
-          <label className="block mb-2 font-semibold">Select or Auto-detect Location:</label>
-
-          {/* 🗺️ Map */}
+          <label className="block mb-2 font-semibold">
+            Select or Auto-detect Location:
+          </label>
           <div className="h-64 w-full rounded-lg overflow-hidden mb-2">
-            <MapContainer center={defaultCenter} zoom={autoDetected ? 13 : 5} style={{ height: "100%", width: "100%" }}>
+            <MapContainer
+              center={defaultCenter}
+              zoom={autoDetected ? 13 : 5}
+              style={{ height: "100%", width: "100%" }}
+            >
               <TileLayer
                 attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -293,12 +360,9 @@ export default function CreatePost() {
               <LocationSelector />
             </MapContainer>
           </div>
-
-          {/* 🗨️ Location Info */}
           <div className="flex items-center gap-2">
             <input
               className="border p-2 rounded w-full"
-              placeholder="Fetching location..."
               value={
                 fetchingAddress
                   ? "Getting address..."
@@ -317,7 +381,8 @@ export default function CreatePost() {
                       setAutoDetected(true);
                       fetchAddress(latitude, longitude);
                     },
-                    (err) => alert("❌ Could not access location: " + err.message)
+                    (err) =>
+                      alert("❌ Could not access location: " + err.message)
                   );
                 } else {
                   alert("Geolocation is not supported by this browser.");
@@ -331,11 +396,15 @@ export default function CreatePost() {
 
         <button
           type="submit"
-          className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          disabled={uploading}
+          className={`${
+            uploading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
+          } text-white py-2 rounded`}
         >
-          Submit Complaint
+          {uploading ? "Uploading..." : "Submit Complaint"}
         </button>
       </form>
+      
     </div>
   );
 }

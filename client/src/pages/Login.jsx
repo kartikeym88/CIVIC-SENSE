@@ -45,42 +45,77 @@ export default function Login() {
 import React, { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebaseConfig";
-import { setAuthToken } from "../api";
+import { api, setAuthToken } from "../api";
+import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
+import Loader from "../components/Loader";
+
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      // 🔹 Firebase sign-in
+      // 1️⃣ Firebase login
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 🔹 Get Firebase ID Token
-      const token = await user.getIdToken(true); // `true` forces a fresh token
+      // 2️⃣ Get fresh token
+      const token = await user.getIdToken(true);
 
-      // 🔹 Save token and attach it to Axios
+      // 3️⃣ Save token to Axios + localStorage
       localStorage.setItem("token", token);
       setAuthToken(token);
 
-      console.log("✅ Token saved successfully:", token.slice(0, 20) + "...");
+      // 4️⃣ Fetch user info from backend
+      const res = await api.get("/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      alert("Login successful!");
+      const role = res.data.user.role;
+      localStorage.setItem("userRole", role);
+      window.dispatchEvent(new Event("storage"));
 
-      // ✅ Delay redirect slightly to ensure token is ready
+
+      toast.success("Welcome back!");
+
       setTimeout(() => {
-        window.location.href = "/";
-      }, 300);
+      navigate(role === "admin" ? "/admin" : "/");
+      }, 1000);
+
+
+
+      /*// 5️⃣ Redirect based on role
+      if (role === "admin") {
+        navigate("/admin-dashboard");
+      } else {
+        navigate("/dashboard");
+      }*/
+     setLoading(false);
+
+      
     } catch (error) {
       console.error("❌ Login failed:", error);
-      alert("Login failed: " + error.message);
+      toast.error(error.message || "Login failed!");
+      setLoading(false);
+
     }
+    
+
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-6 bg-white rounded shadow">
+      <Toaster position="top-right" />
+      {loading && <Loader text="Logging you in..." />}
+
       <h2 className="text-2xl font-bold mb-4">Login</h2>
       <form onSubmit={handleLogin} className="flex flex-col gap-4">
         <input

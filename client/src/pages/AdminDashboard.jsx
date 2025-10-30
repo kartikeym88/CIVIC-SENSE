@@ -33,6 +33,8 @@ export default function AdminDashboard() {
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [modalImage, setModalImage] = useState(null); // 🟢 For fullscreen image modal
+
 
   // ✅ Fetch all posts
   const fetchPosts = async () => {
@@ -151,60 +153,100 @@ export default function AdminDashboard() {
       </div>
 
       {/* ✅ Complaint List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredPosts.length === 0 ? (
-          <p className="text-center text-gray-500 col-span-2">
-            No matching complaints found
-          </p>
+      {/* ✅ Complaint List */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  {filteredPosts.length === 0 ? (
+    <p className="text-center text-gray-500 col-span-2">
+      No matching complaints found
+    </p>
+  ) : (
+    filteredPosts.map((post) => (
+      <div
+        key={post._id}
+        className={`p-4 rounded-xl shadow-md border ${
+          post.status === "Resolved" ? "bg-green-50" : "bg-yellow-50"
+        }`}
+      >
+        {/* 🖼️ Image Preview */}
+        {post.imageUrl ? (
+          <img
+            src={post.imageUrl}
+            alt={post.title}
+            className="w-full h-48 object-cover rounded mb-3 cursor-pointer"
+            onClick={() => setModalImage(post.imageUrl)}
+            onError={(e) => (e.target.style.display = "none")}
+          />
         ) : (
-          filteredPosts.map((post) => (
-            <div
-              key={post._id}
-              className={`p-4 rounded-xl shadow-md border ${
-                post.status === "Resolved" ? "bg-green-50" : "bg-yellow-50"
-              }`}
-            >
-              <h3 className="text-xl font-semibold mb-2">{post.title}</h3>
-              <p className="text-gray-600 mb-2">{post.description}</p>
-              <p className="text-sm text-gray-500 mb-1">
-                <b>Category:</b> {post.category}
-              </p>
-              <p className="text-sm text-gray-500 mb-1">
-                <b>Location:</b>{" "}
-                {post.location?.text
-                  ? post.location.text
-                  : post.location
-                  ? `Lat: ${post.location.lat}, Lng: ${post.location.lng}`
-                  : "N/A"}
-              </p>
-              <p className="text-sm text-gray-400 mb-2">
-                Posted on {new Date(post.createdAt).toLocaleString()}
-              </p>
-
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => toggleStatus(post._id)}
-                  className={`px-3 py-1 rounded ${
-                    post.status === "Resolved"
-                      ? "bg-yellow-500 text-white hover:bg-yellow-600"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  {post.status === "Resolved"
-                    ? "Mark Pending"
-                    : "Mark Resolved"}
-                </button>
-                <button
-                  onClick={() => deletePost(post._id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+          <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500 rounded mb-3">
+            No Image Uploaded
+          </div>
         )}
+
+        {/* 🧾 Complaint Info */}
+        <h3 className="text-xl font-semibold mb-2">{post.title}</h3>
+        <p className="text-gray-600 mb-2">{post.description}</p>
+        <p className="text-sm text-gray-500 mb-1">
+          <b>Category:</b> {post.category}
+        </p>
+        <p className="text-sm text-gray-500 mb-1">
+          <b>Location:</b>{" "}
+          {post.location?.text
+            ? post.location.text
+            : post.location
+            ? `Lat: ${post.location.lat}, Lng: ${post.location.lng}`
+            : "N/A"}
+        </p>
+        <p className="text-sm text-gray-400 mb-2">
+          Posted on {new Date(post.createdAt).toLocaleString()}
+        </p>
+
+        {/* ⚙️ Action Buttons */}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => toggleStatus(post._id)}
+            className={`px-3 py-1 rounded ${
+              post.status === "Resolved"
+                ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
+          >
+            {post.status === "Resolved" ? "Mark Pending" : "Mark Resolved"}
+          </button>
+          <button
+            onClick={() => deletePost(post._id)}
+            className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
       </div>
+    ))
+  )}
+</div>
+{/* 🟢 Global Image Modal */}
+{modalImage && (
+  <div
+    className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[9999]"
+    onClick={() => setModalImage(null)}
+  >
+    <div className="relative max-w-5xl w-full mx-4">
+      <img
+        src={modalImage}
+        alt="Full complaint view"
+        className="w-full max-h-[90vh] object-contain rounded-lg shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <button
+        onClick={() => setModalImage(null)}
+        className="absolute top-3 right-3 text-white bg-black bg-opacity-50 px-3 py-1 rounded hover:bg-opacity-70 transition"
+      >
+        ✕ Close
+      </button>
+    </div>
+  </div>
+)}
+
+
     </div>
   );
 }
